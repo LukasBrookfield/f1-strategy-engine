@@ -1,6 +1,9 @@
-# Other
+# My project
 *.md
 !README.md
+data/**
+!data/**/
+!data/**/.gitkeep
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -8,7 +11,4 @@ __pycache__/
 *$py.class
 
 # Environments
-.env
 .venv
-env/
-venv/
