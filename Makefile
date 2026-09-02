@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup ingest test lint
+.PHONY: help setup ingest test lint format
 
 help: ## Show this help message
 	@echo "Available commands:"
@@ -12,4 +12,9 @@ test:  ## Run test suite
 	uv run pytest
 
 lint:  ## Run code linter and formatting checks
-	uv run ruff check . && uv run ruff format --check .
+	uv run ruff check .
+	uv run ruff format --check .
+
+format:  ## Ruff will make changes to the files to format the code
+	uv run ruff format .
+	uv run ruff check --fix .
