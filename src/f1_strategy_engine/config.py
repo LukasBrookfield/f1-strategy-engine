@@ -29,4 +29,3 @@ def get_config() -> Config:
     return Config(train_seasons, holdout_season, raw_dir, cache_dir, pit_mode)
 
 
-print(get_config())
