@@ -5,7 +5,7 @@ become knowable?* FastF1 is a post-hoc archive and cannot tell us, so we model
 it with an explicit, documented rule.
 
 It deliberately imports nothing from FastF1 and touches no I/O, so the rules
-can be unit-tested in isolation and reviewed on their own. See ADR 0004.
+can be unit-tested in isolation and reviewed on their own.
 """
 
 import pandas as pd
@@ -17,8 +17,6 @@ import pandas as pd
 # times are optimistic, so any leakage this rule fails to catch makes a model
 # look *better* than it truly is, never worse. An honest error direction.
 FEED_LATENCY = pd.Timedelta(seconds=2)
-
-WEATHER_RULE = "observed"
 
 
 def lap_knowledge_time(event_time_utc: pd.Series) -> pd.Series:
