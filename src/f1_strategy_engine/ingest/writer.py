@@ -1,6 +1,6 @@
+import os
 from pathlib import Path
 from typing import Literal
-import os
 
 import pandas as pd
 
@@ -21,7 +21,13 @@ def write_session(
 ) -> Path | None:
     """Write the raw data of an F1 session to parquet into the data/raw folder."""
     # create path using hive style partitioning
-    path = get_config().raw_dir / table / f"season={season}" / f"round={round_number}" / f"session={session_code.value}"
+    path = (
+        get_config().raw_dir
+        / table
+        / f"season={season}"
+        / f"round={round_number}"
+        / f"session={session_code.value}"
+    )
     file_path = path / DATA_FILE_NAME
 
     if os.path.exists(file_path) and not force:

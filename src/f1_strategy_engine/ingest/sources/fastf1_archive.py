@@ -13,7 +13,12 @@ import fastf1
 import pandas as pd
 
 from f1_strategy_engine.config import get_config
-from f1_strategy_engine.ingest.knowledge_time import lap_knowledge_time, weather_knowledge_time
+from f1_strategy_engine.ingest.knowledge_time import (
+    LAP_RULE,
+    WEATHER_RULE,
+    lap_knowledge_time,
+    weather_knowledge_time,
+)
 
 SOURCE = "fastf1_archive"
 
@@ -73,8 +78,12 @@ def _enable_cache() -> None:
 
 
 def _build_laps(
-    session: fastf1.core.Session, season: int, round_number: int, session_code: str, t0: pd.Timestamp
-    ) -> pd.DataFrame:
+    session: fastf1.core.Session,
+    season: int,
+    round_number: int,
+    session_code: str,
+    t0: pd.Timestamp,
+) -> pd.DataFrame:
     """
     Retrieve laps from fastf1 API and transform dataframes into desired structure.
     Returns laps as bronze-layer dataframe.
@@ -93,9 +102,10 @@ def _build_laps(
     out["event_time_utc"] = _to_utc(laps["Time"], t0)
     out["knowledge_time_utc"] = lap_knowledge_time(out["event_time_utc"])
 
-    # --- info ---
+    # --- provenance ---
     out["ingested_at_utc"] = pd.Timestamp.now(tz="UTC").floor("us")
     out["source"] = SOURCE
+    out["knowledge_time_rule"] = LAP_RULE
 
     # --- payload: durations, as seconds ---
     out["lap_time_s"] = laps["LapTime"].dt.total_seconds()
@@ -118,8 +128,14 @@ def _build_laps(
 
     return out.astype(_DTYPES_LAPS).reset_index(drop=True)
 
-def _build_weather(session: fastf1.core.Session, season: int, round_number: int, session_code: str, t0: pd.Timestamp
-    ) -> pd.DataFrame:
+
+def _build_weather(
+    session: fastf1.core.Session,
+    season: int,
+    round_number: int,
+    session_code: str,
+    t0: pd.Timestamp,
+) -> pd.DataFrame:
     weather = session.weather_data
     out = pd.DataFrame(index=weather.index)
 
@@ -133,9 +149,10 @@ def _build_weather(session: fastf1.core.Session, season: int, round_number: int,
     out["event_time_utc"] = _to_utc(weather["Time"], t0)
     out["knowledge_time_utc"] = weather_knowledge_time(out["event_time_utc"])
 
-    # --- info ---
+    # --- provenance ---
     out["ingested_at_utc"] = pd.Timestamp.now(tz="UTC").floor("us")
     out["source"] = SOURCE
+    out["knowledge_time_rule"] = WEATHER_RULE
 
     for src, dst in _PASSTHROUGH_WEATHER.items():
         if dst not in out.columns:
@@ -144,7 +161,9 @@ def _build_weather(session: fastf1.core.Session, season: int, round_number: int,
     return out
 
 
-def load_session(season: int, round_number: int, session_code: str = "R") -> dict[str, pd.DataFrame]:
+def load_session(
+    season: int, round_number: int, session_code: str = "R"
+) -> dict[str, pd.DataFrame]:
     """Returns {"laps": ..., "weather: ..."} from one fetch.
     telemetry=True is required for `t0_date` (the UTC anchor) and messages=True
     for the `deleted` / `deleted_reason` columns, which come from race control."""
