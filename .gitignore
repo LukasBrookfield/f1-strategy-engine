@@ -3,14 +3,15 @@
 !README.md
 data/**
 !data/**/
-!data/**/.gitkeep
 .pytest_cache
 .ruff_cache
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
-*$py.class
 
 # Environments
 .venv
+
+# IDE specific
+.vscode

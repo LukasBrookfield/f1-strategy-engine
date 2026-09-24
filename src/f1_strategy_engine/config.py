@@ -27,6 +27,3 @@ def get_config() -> Config:
     cache_dir = Path(yaml_config["cache_dir"])
     pit_mode = PointInTimeMode(yaml_config["pit_mode"])
     return Config(train_seasons, holdout_season, raw_dir, cache_dir, pit_mode)
-
-
-print(get_config())
