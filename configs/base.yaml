@@ -2,4 +2,4 @@ train_seasons: [2024]
 holdout_season: 2025
 raw_dir: "data/raw"
 cache_dir: "data/cache"
-pit_mode: NONE
+pit_mode: ROWS_ONLY
