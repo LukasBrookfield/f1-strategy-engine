@@ -7,15 +7,20 @@ import pandas as pd
 from f1_strategy_engine.config import get_config
 from f1_strategy_engine.features.silver import fuel_correct
 
+RACE_KEY = ["season", "round", "session"]
+STINT_KEY = [*RACE_KEY, "driver", "stint"]
+BASELINE_LAPS = 3
+WINDOW_SIZE = 3
+
 # --- Tyre ---------------------------------------------------------------
 
 
-def compound(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:  # 🤖
+def compound(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
     """Tyre compound of each lap, as a categorical."""
     return laps["compound"].astype("category").rename("compound")
 
 
-def tyre_age(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:  # ✍️
+def tyre_age(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
     """Laps on this set of tyres (the degradation clock).
 
     TODO:
@@ -25,31 +30,19 @@ def tyre_age(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:  # ✍️
     raise NotImplementedError
 
 
-def stint_lap_index(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:  # ✍️
-    """Lap number within the current stint.
-
-    TODO:
-    - Group by driver + stint, cumcount
-    - Pick 0- or 1-based and document it
-    - Only use info from the lap itself and earlier
-    """
-    raise NotImplementedError
+def stint_lap_index(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
+    """Lap number within the current stint."""
+    laps_sorted = laps.sort_values([*STINT_KEY, "lap_number"])
+    # add 1 to cumcount, so that the first lap after pitting is stint_lap_index = 1
+    stint_lap_index = laps_sorted.groupby(STINT_KEY)["lap_number"].cumcount() + 1
+    return stint_lap_index.rename("stint_lap_index")
 
 
 # --- Pace ---------------------------------------------------------------
 
 
-def fuel_corrected_lap_time(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:  # 🔍
-    """Lap time with the fuel-burn effect removed.
-
-    `laps_remaining` is `scheduled_laps - lap_number`, so the final scheduled lap
-    gets zero correction. `scheduled_laps` is known before the session starts, so
-    it is identical under every point-in-time mode. It is never derived from the
-    laps in the frame (that would leak the future and break for DNFs).
-
-    Every lap is corrected, including in/out/SC laps: flag, don't drop.
-    `as_of` is unused: the inputs are already point-in-time rows.
-    """
+def fuel_corrected_lap_time(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
+    """Lap time with the fuel-burn effect removed."""
     fuel = get_config().fuel
     laps_remaining = laps["scheduled_laps"] - laps["lap_number"]
     corrected = fuel_correct(
@@ -58,32 +51,58 @@ def fuel_corrected_lap_time(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Serie
     return corrected.rename("fuel_corrected_lap_time")
 
 
-def rolling_median_last_3(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:  # ✍️
+def rolling_median_last_3(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
     """Median of the last 3 fuel-corrected laps in the stint.
 
-    TODO:
-    - Decide: does the window include the current lap? (target leakage, workshop 08 §3)
-    - groupby driver + stint, rolling, min_periods
-    - Decide what to do with flagged laps (SC, in/out laps, inaccurate)
+    min_periods=1, so the median will also be calculated on 1 or 2 values if 3
+    values are not available. The window includes the current lap. Flagged laps
+    carry the value from the stint's last representative lap (NaN if none yet).
     """
-    raise NotImplementedError
+    pace = fuel_corrected_lap_time(laps, as_of)
+    df = laps.assign(pace=pace)
+
+    representative = ~(
+            df["is_outlap"] | df["is_inlap"] | df["is_lap1"] | df["is_safety_car_lap"]
+        ) & df["pace"].notna()
+    eligible = df[representative].sort_values([*STINT_KEY, "lap_number"])
+
+    rolling_median = eligible.groupby(STINT_KEY)["pace"].transform(
+        lambda s: s.rolling(WINDOW_SIZE, min_periods=1).median()
+    )
+
+    ordered = df.assign(rolling=rolling_median).sort_values([*STINT_KEY, "lap_number"])
+    per_lap = ordered.groupby(STINT_KEY)["rolling"].ffill()
+
+    return per_lap.reindex(laps.index).rename("rolling_median_last_3")
 
 
-def delta_to_stint_baseline(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:  # ✍️
-    """Lap pace relative to the stint's baseline pace.
+def delta_to_stint_baseline(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
+    """Fuel-corrected pace relative to the stint's baseline.  
 
-    TODO:
-    - Pick a baseline (first k representative laps?), note in ADR 0005
-    - Baseline aggregates only over the rows given, so it's honest under ROWS_ONLY
-    - Decide the value before k laps exist (NaN?)
+    The baseline is NaN until the stint has BASELINE_LAPS representative laps 
+    in the rows given.
     """
-    raise NotImplementedError
+    pace = fuel_corrected_lap_time(laps, as_of)
+    df = laps.assign(pace=pace)
 
+    representative = ~(
+        df["is_outlap"] | df["is_inlap"] | df["is_lap1"] | df["is_safety_car_lap"]
+    ) & df["pace"].notna()
+    eligible = df[representative].sort_values([*STINT_KEY, "lap_number"])
+    first_k = eligible.groupby(STINT_KEY).head(BASELINE_LAPS)
+
+    stats = first_k.groupby(STINT_KEY)["pace"].agg(["median", "count"])
+    baseline = stats["median"].where(stats["count"] == BASELINE_LAPS)
+
+    baseline_per_lap = df[STINT_KEY].join(baseline.rename("baseline"), on=STINT_KEY)
+    return (df["pace"] - baseline_per_lap["baseline"]).rename(
+        "delta_to_stint_baseline"
+    )
 
 # --- Track --------------------------------------------------------------
 
 
-def track_temp(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:  # ✍️
+def track_temp(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
     """Latest track temperature known when the lap finished.
 
     TODO:
@@ -95,7 +114,7 @@ def track_temp(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:  # ✍️
     raise NotImplementedError
 
 
-def air_temp(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:  # ✍️
+def air_temp(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
     """Latest air temperature known when the lap finished.
 
     TODO:
@@ -107,6 +126,6 @@ def air_temp(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:  # ✍️
 # --- Circuit ------------------------------------------------------------
 
 
-def circuit(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:  # 🤖
+def circuit(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series: 
     """Circuit of each lap, as a categorical."""
     return laps["circuit"].astype("category").rename("circuit")
