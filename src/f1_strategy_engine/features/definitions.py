@@ -1,5 +1,8 @@
 """
-Feature definitions: one function per feature, all shaped `(laps, as_of) -> Series`.
+Feature definitions: one function per feature.
+All shaped `laps -> Series` apart from features that require weather data, which are
+shaped `(laps, weather) -> Series`
+Point-in-time correctness is enforced upstream.
 """
 
 import pandas as pd
@@ -12,36 +15,38 @@ STINT_KEY = [*RACE_KEY, "driver", "stint"]
 BASELINE_LAPS = 3
 WINDOW_SIZE = 3
 
+
+def _representative(df: pd.DataFrame) -> pd.DataFrame:
+    return ~(
+        df["is_outlap"] | df["is_inlap"] | df["is_lap1"] | df["is_safety_car_lap"]
+    ) & df["pace"].notna()
+
+
 # --- Tyre ---------------------------------------------------------------
 
 
-def compound(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
+def compound(laps: pd.DataFrame) -> pd.Series:
     """Tyre compound of each lap, as a categorical."""
     return laps["compound"].astype("category").rename("compound")
 
 
-def tyre_age(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
-    """Laps on this set of tyres (the degradation clock).
-
-    TODO:
-    - Decide tyre_life vs stint_lap_index for B1 (workshop 06 §7), note in ADR 0005
-    - Handle used sets and NaN tyre life
-    """
-    raise NotImplementedError
+def tyre_age(laps: pd.DataFrame) -> pd.Series:
+    """Laps on this set of tyres. Includes laps from previous sessions."""
+    return laps["tyre_life"].rename("tyre_age")
 
 
-def stint_lap_index(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
+def stint_lap_index(laps: pd.DataFrame) -> pd.Series:
     """Lap number within the current stint."""
     laps_sorted = laps.sort_values([*STINT_KEY, "lap_number"])
     # add 1 to cumcount, so that the first lap after pitting is stint_lap_index = 1
     stint_lap_index = laps_sorted.groupby(STINT_KEY)["lap_number"].cumcount() + 1
-    return stint_lap_index.rename("stint_lap_index")
+    return stint_lap_index.reindex(laps.index).rename("stint_lap_index")
 
 
 # --- Pace ---------------------------------------------------------------
 
 
-def fuel_corrected_lap_time(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
+def fuel_corrected_lap_time(laps: pd.DataFrame) -> pd.Series:
     """Lap time with the fuel-burn effect removed."""
     fuel = get_config().fuel
     laps_remaining = laps["scheduled_laps"] - laps["lap_number"]
@@ -51,19 +56,17 @@ def fuel_corrected_lap_time(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Serie
     return corrected.rename("fuel_corrected_lap_time")
 
 
-def rolling_median_last_3(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
+def rolling_median_last_3(laps: pd.DataFrame) -> pd.Series:
     """Median of the last 3 fuel-corrected laps in the stint.
 
     min_periods=1, so the median will also be calculated on 1 or 2 values if 3
     values are not available. The window includes the current lap. Flagged laps
     carry the value from the stint's last representative lap (NaN if none yet).
     """
-    pace = fuel_corrected_lap_time(laps, as_of)
+    pace = fuel_corrected_lap_time(laps)
     df = laps.assign(pace=pace)
 
-    representative = ~(
-            df["is_outlap"] | df["is_inlap"] | df["is_lap1"] | df["is_safety_car_lap"]
-        ) & df["pace"].notna()
+    representative = _representative(df)
     eligible = df[representative].sort_values([*STINT_KEY, "lap_number"])
 
     rolling_median = eligible.groupby(STINT_KEY)["pace"].transform(
@@ -76,18 +79,16 @@ def rolling_median_last_3(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
     return per_lap.reindex(laps.index).rename("rolling_median_last_3")
 
 
-def delta_to_stint_baseline(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
+def delta_to_stint_baseline(laps: pd.DataFrame) -> pd.Series:
     """Fuel-corrected pace relative to the stint's baseline.  
 
     The baseline is NaN until the stint has BASELINE_LAPS representative laps 
     in the rows given.
     """
-    pace = fuel_corrected_lap_time(laps, as_of)
+    pace = fuel_corrected_lap_time(laps)
     df = laps.assign(pace=pace)
 
-    representative = ~(
-        df["is_outlap"] | df["is_inlap"] | df["is_lap1"] | df["is_safety_car_lap"]
-    ) & df["pace"].notna()
+    representative = _representative(df)
     eligible = df[representative].sort_values([*STINT_KEY, "lap_number"])
     first_k = eligible.groupby(STINT_KEY).head(BASELINE_LAPS)
 
@@ -99,33 +100,51 @@ def delta_to_stint_baseline(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Serie
         "delta_to_stint_baseline"
     )
 
+
 # --- Track --------------------------------------------------------------
 
 
-def track_temp(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
-    """Latest track temperature known when the lap finished.
-
-    TODO:
-    - Needs weather data as well as laps, so decide how to get it in
-    - merge_asof, direction="backward", by season/round/session
-    - Sort both sides by the join key
-    - Filter weather through as_of too
+def _latest_weather(laps: pd.DataFrame, weather: pd.DataFrame, col: str) -> pd.Series:
     """
-    raise NotImplementedError
-
-
-def air_temp(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series:
-    """Latest air temperature known when the lap finished.
-
-    TODO:
-    - Same join as track_temp, maybe share a helper
+    Helper method for getting the latest weather columns when the lap became known.
     """
-    raise NotImplementedError
+    lap_cols = [*RACE_KEY, "knowledge_time_utc"]
+    weather_cols = [*lap_cols, col]
+    laps_sorted = laps[lap_cols].reset_index(names="_row").sort_values(
+        "knowledge_time_utc"
+    )
+    weather_sorted = weather[weather_cols].sort_values("knowledge_time_utc")
+    df = pd.merge_asof(
+        laps_sorted,
+        weather_sorted,
+        on="knowledge_time_utc",
+        by=RACE_KEY,
+        direction="backward",
+        tolerance=pd.Timedelta("2min"),
+    )
+
+    return df.set_index("_row")[col].reindex(laps.index).rename(col)
+
+
+def track_temp(laps: pd.DataFrame, weather: pd.DataFrame) -> pd.Series:
+    """Latest track temperature known when the lap became known.
+
+    A sample older than 2 min (twice the ~60 s feed interval) gives NaN, not stale data
+    """
+    return _latest_weather(laps, weather, "track_temp")
+
+
+def air_temp(laps: pd.DataFrame, weather: pd.DataFrame) -> pd.Series:
+    """Latest air temperature known when the lap became known.
+
+    A sample older than 2 min (twice the ~60 s feed interval) gives NaN, not stale data
+    """
+    return _latest_weather(laps, weather, "air_temp")
 
 
 # --- Circuit ------------------------------------------------------------
 
 
-def circuit(laps: pd.DataFrame, as_of: pd.Timestamp) -> pd.Series: 
+def circuit(laps: pd.DataFrame) -> pd.Series: 
     """Circuit of each lap, as a categorical."""
     return laps["circuit"].astype("category").rename("circuit")
