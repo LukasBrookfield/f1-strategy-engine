@@ -8,6 +8,7 @@ Point-in-time correctness is enforced upstream.
 import pandas as pd
 
 from f1_strategy_engine.config import get_config
+from f1_strategy_engine.constants import CIRCUIT_ALIASES, CIRCUITS, Compound
 from f1_strategy_engine.features.silver import fuel_correct
 
 RACE_KEY = ["season", "round", "session"]
@@ -15,19 +16,49 @@ STINT_KEY = [*RACE_KEY, "driver", "stint"]
 BASELINE_LAPS = 3
 WINDOW_SIZE = 3
 
+# Fixed categories, so every frame (train, eval, serve) encodes values identically
+COMPOUND_DTYPE = pd.CategoricalDtype([c.value for c in Compound])
+CIRCUIT_DTYPE = pd.CategoricalDtype(CIRCUITS)
 
-def _representative(df: pd.DataFrame) -> pd.DataFrame:
-    return ~(
-        df["is_outlap"] | df["is_inlap"] | df["is_lap1"] | df["is_safety_car_lap"]
-    ) & df["pace"].notna()
+
+def _representative(df: pd.DataFrame) -> pd.Series:
+    """Laps whose pace reflects the tyres, used by the pace aggregates.
+
+    Excludes lap 1, in/out laps, SC and VSC laps, laps FastF1 couldn't time
+    accurately or synthesised, laps deleted by race control, and missing times.
+    A missing FastF1 flag excludes the lap.
+    """
+    excluded = (
+        df["is_lap1"]
+        | df["is_inlap"]
+        | df["is_outlap"]
+        | df["is_safety_car_lap"]
+        | df["is_vsc_lap"]
+        | ~df["is_accurate"].fillna(False)
+        | df["deleted"].fillna(True)
+        | df["fastf1_generated"].fillna(True)
+    )
+    return ~excluded & df["pace"].notna()
+
+
+def _to_category(values: pd.Series, dtype: pd.CategoricalDtype) -> pd.Series:
+    """Cast to a fixed categorical, raising on unknown values.
+
+    `astype` would silently turn a value outside the categories into NaN.
+    """
+    present = values.dropna()
+    unknown = present[~present.isin(dtype.categories)].unique()
+    if len(unknown) > 0:
+        raise ValueError(f"Unknown {values.name} values: {sorted(unknown)}")
+    return values.astype(dtype)
 
 
 # --- Tyre ---------------------------------------------------------------
 
 
 def compound(laps: pd.DataFrame) -> pd.Series:
-    """Tyre compound of each lap, as a categorical."""
-    return laps["compound"].astype("category").rename("compound")
+    """Tyre compound of each lap, as a categorical with fixed categories."""
+    return _to_category(laps["compound"], COMPOUND_DTYPE).rename("compound")
 
 
 def tyre_age(laps: pd.DataFrame) -> pd.Series:
@@ -36,11 +67,13 @@ def tyre_age(laps: pd.DataFrame) -> pd.Series:
 
 
 def stint_lap_index(laps: pd.DataFrame) -> pd.Series:
-    """Lap number within the current stint."""
-    laps_sorted = laps.sort_values([*STINT_KEY, "lap_number"])
-    # add 1 to cumcount, so that the first lap after pitting is stint_lap_index = 1
-    stint_lap_index = laps_sorted.groupby(STINT_KEY)["lap_number"].cumcount() + 1
-    return stint_lap_index.reindex(laps.index).rename("stint_lap_index")
+    """Lap number within the current stint; the stint's first lap is 1.
+
+    Counted from lap numbers, not rows, so a missing lap row can't shift the index
+    of later laps.
+    """
+    stint_start = laps.groupby(STINT_KEY)["lap_number"].transform("min")
+    return (laps["lap_number"] - stint_start + 1).rename("stint_lap_index")
 
 
 # --- Pace ---------------------------------------------------------------
@@ -60,8 +93,9 @@ def rolling_median_last_3(laps: pd.DataFrame) -> pd.Series:
     """Median of the last 3 fuel-corrected laps in the stint.
 
     min_periods=1, so the median will also be calculated on 1 or 2 values if 3
-    values are not available. The window includes the current lap. Flagged laps
-    carry the value from the stint's last representative lap (NaN if none yet).
+    values are not available. The window includes the current lap. Laps that
+    aren't representative are skipped by the window and carry the value from the
+    stint's last representative lap (NaN if none yet).
     """
     pace = fuel_corrected_lap_time(laps)
     df = laps.assign(pace=pace)
@@ -145,6 +179,10 @@ def air_temp(laps: pd.DataFrame, weather: pd.DataFrame) -> pd.Series:
 # --- Circuit ------------------------------------------------------------
 
 
-def circuit(laps: pd.DataFrame) -> pd.Series: 
-    """Circuit of each lap, as a categorical."""
-    return laps["circuit"].astype("category").rename("circuit")
+def circuit(laps: pd.DataFrame) -> pd.Series:
+    """Circuit of each lap, as a categorical with fixed categories.
+
+    Aliases are mapped first, so one circuit is one category across seasons.
+    """
+    canonical = laps["circuit"].replace(CIRCUIT_ALIASES)
+    return _to_category(canonical, CIRCUIT_DTYPE).rename("circuit")

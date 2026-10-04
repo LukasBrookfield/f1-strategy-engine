@@ -13,6 +13,36 @@ class Compound(StrEnum):
     TEST_UNKNOWN = "TEST_UNKNOWN"
 
 
+CIRCUITS = (
+    "Austin",
+    "Baku",
+    "Barcelona",
+    "Budapest",
+    "Imola",
+    "Jeddah",
+    "Las Vegas",
+    "Lusail",
+    "Marina Bay",
+    "Melbourne",
+    "Mexico City",
+    "Miami",
+    "Monaco",
+    "Montréal",
+    "Monza",
+    "Sakhir",
+    "Shanghai",
+    "Silverstone",
+    "Spa-Francorchamps",
+    "Spielberg",
+    "Suzuka",
+    "São Paulo",
+    "Yas Island",
+    "Zandvoort",
+)
+
+CIRCUIT_ALIASES = {"Miami Gardens": "Miami"}
+
+
 class Session(StrEnum):
     FP1 = "FP1"
     FP2 = "FP2"
