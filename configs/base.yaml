@@ -2,6 +2,10 @@ train_seasons: [2024]
 holdout_season: 2025
 raw_dir: "data/raw"
 cache_dir: "data/cache"
+# pit_mode = point-in-time gate: 
+#     ROWS_ONLY = only data known at decision time
+#     NONE = no gate
+# controls the amount of leakage in the model, used for my leakage experiment
 pit_mode: ROWS_ONLY
 fuel:
   kg_per_lap: 1.7  # ~110 kg over a ~305 km race
