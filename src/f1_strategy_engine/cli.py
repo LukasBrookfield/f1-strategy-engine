@@ -15,12 +15,13 @@ import fastf1
 
 from .config import get_config
 from .constants import Session
-from .ingest.sources.fastf1_archive import load_session
-from .ingest.writer import write_session
+from .ingest.sources.fastf1_archive import enable_cache, load_session
+from .ingest.writer import session_file_path, write_session
 
 log = logging.getLogger(__name__)
 
 INGEST_SESSION = Session.R
+INGEST_TABLES = ("laps", "weather")
 
 
 def get_event_schedule_rounds(season: int, include_testing: bool = False) -> list[int]:
@@ -37,6 +38,7 @@ def _not_implemented(args: argparse.Namespace) -> int:
 def _ingest(args: argparse.Namespace) -> int:
     """Backfill sessions into the raw layer, one parquet file per session table."""
     config = get_config()
+    enable_cache()
 
     seasons = [args.season] if args.season is not None else list(config.train_seasons)
 
@@ -52,19 +54,34 @@ def _ingest(args: argparse.Namespace) -> int:
 
         for round_number in rounds:
             label = f"{season} round {round_number} {INGEST_SESSION}"
+
+            all_exist = all(
+                session_file_path(table, season, round_number, INGEST_SESSION).exists()
+                for table in INGEST_TABLES
+            )
+
+            if not args.force and all_exist:
+                skipped += len(INGEST_TABLES)
+                log.info("%s: already on disk, skipped", label)
+                continue
+
             try:
                 tables = load_session(season, round_number, INGEST_SESSION)
                 for table, df in tables.items():
-                    path = write_session(
+                    file_path = write_session(
                         df, table, season, round_number, INGEST_SESSION, args.force
                     )
-                    if path is None:
+                    if file_path is None:
                         skipped += 1
                         log.info("%s %s: already on disk, skipped", label, table)
                     else:
                         written += 1
                         log.info(
-                            "%s %s: wrote %d rows to %s", label, table, len(df), path
+                            "%s %s: wrote %d rows to %s",
+                            label,
+                            table,
+                            len(df),
+                            file_path,
                         )
             except Exception:
                 failed += 1

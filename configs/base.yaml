@@ -2,4 +2,7 @@ train_seasons: [2024]
 holdout_season: 2025
 raw_dir: "data/raw"
 cache_dir: "data/cache"
-pit_mode: NONE
+pit_mode: ROWS_ONLY
+fuel:
+  kg_per_lap: 1.7  # ~110 kg over a ~305 km race
+  s_per_kg: 0.03  # lap time lost per kg carried, typical ~5 km lap

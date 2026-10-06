@@ -48,6 +48,7 @@ _DTYPES_LAPS = {
     "stint": "Int32",
     "tyre_life": "Int32",
     "position": "Int32",
+    "scheduled_laps": "Int32",
     "fresh_tyre": "boolean",
     "is_accurate": "boolean",
     "deleted": "boolean",
@@ -70,8 +71,12 @@ def _to_utc(td: pd.Series, t0: pd.Timestamp) -> pd.Series:
     return (t0 + td).dt.tz_localize("UTC").astype("datetime64[us, UTC]")
 
 
-def _enable_cache() -> None:
-    """Saves cached fastf1 data in designated directory."""
+def enable_cache() -> None:
+    """Point FastF1's HTTP cache at `config.cache_dir`.
+
+    Must run before *any* FastF1 request, including the event schedule:
+    otherwise FastF1 silently enables its default cache in ~/.cache/fastf1.
+    """
     cache_dir = get_config().cache_dir
     cache_dir.mkdir(parents=True, exist_ok=True)
     fastf1.Cache.enable_cache(cache_dir)
@@ -97,6 +102,10 @@ def _build_laps(
     out["session"] = session_code
     out["driver"] = laps["Driver"]
     out["lap_number"] = laps["LapNumber"]
+
+    # --- session facts known before the start ---
+    out["scheduled_laps"] = session.total_laps
+    out["circuit"] = session.event["Location"]
 
     # --- bitemporal part ---
     out["event_time_utc"] = _to_utc(laps["Time"], t0)
@@ -167,7 +176,7 @@ def load_session(
     """Returns {"laps": ..., "weather: ..."} from one fetch.
     telemetry=True is required for `t0_date` (the UTC anchor) and messages=True
     for the `deleted` / `deleted_reason` columns, which come from race control."""
-    _enable_cache()
+    enable_cache()
     session = fastf1.get_session(season, round_number, session_code)
     session.load(laps=True, telemetry=True, weather=True, messages=True)
 
@@ -175,7 +184,7 @@ def load_session(
     if t0 is None:
         raise RuntimeError(
             f"FastF1 could not determine t0_date for {season} round {round_number} "
-            f"{session_code}. Every UTC timestamp would be unanchored; refusing to write."
+            f"{session_code}."
         )
 
     laps = _build_laps(session, season, round_number, session_code, t0)
