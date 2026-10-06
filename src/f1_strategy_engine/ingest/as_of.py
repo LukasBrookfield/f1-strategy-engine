@@ -27,7 +27,7 @@ def as_of(
                        row per key.
         NONE:          no time filter, still the latest row per key. What a
                        pipeline without this gate sees.
-        ROWS_AND_FITS: raises NotImplementedError. 
+        ROWS_AND_FITS: raises NotImplementedError.
 
     Returns a new DataFrame sorted by `knowledge_time_utc`
     """

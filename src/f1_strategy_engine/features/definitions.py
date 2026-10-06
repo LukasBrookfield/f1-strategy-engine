@@ -114,9 +114,9 @@ def rolling_median_last_3(laps: pd.DataFrame) -> pd.Series:
 
 
 def delta_to_stint_baseline(laps: pd.DataFrame) -> pd.Series:
-    """Fuel-corrected pace relative to the stint's baseline.  
+    """Fuel-corrected pace relative to the stint's baseline.
 
-    The baseline is NaN until the stint has BASELINE_LAPS representative laps 
+    The baseline is NaN until the stint has BASELINE_LAPS representative laps
     in the rows given.
     """
     pace = fuel_corrected_lap_time(laps)
@@ -130,9 +130,7 @@ def delta_to_stint_baseline(laps: pd.DataFrame) -> pd.Series:
     baseline = stats["median"].where(stats["count"] == BASELINE_LAPS)
 
     baseline_per_lap = df[STINT_KEY].join(baseline.rename("baseline"), on=STINT_KEY)
-    return (df["pace"] - baseline_per_lap["baseline"]).rename(
-        "delta_to_stint_baseline"
-    )
+    return (df["pace"] - baseline_per_lap["baseline"]).rename("delta_to_stint_baseline")
 
 
 # --- Track --------------------------------------------------------------
@@ -144,8 +142,8 @@ def _latest_weather(laps: pd.DataFrame, weather: pd.DataFrame, col: str) -> pd.S
     """
     lap_cols = [*RACE_KEY, "knowledge_time_utc"]
     weather_cols = [*lap_cols, col]
-    laps_sorted = laps[lap_cols].reset_index(names="_row").sort_values(
-        "knowledge_time_utc"
+    laps_sorted = (
+        laps[lap_cols].reset_index(names="_row").sort_values("knowledge_time_utc")
     )
     weather_sorted = weather[weather_cols].sort_values("knowledge_time_utc")
     df = pd.merge_asof(

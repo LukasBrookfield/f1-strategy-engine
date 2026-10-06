@@ -56,10 +56,10 @@ def _ingest(args: argparse.Namespace) -> int:
             label = f"{season} round {round_number} {INGEST_SESSION}"
 
             all_exist = all(
-                session_file_path(table, season, round_number, INGEST_SESSION).exists() 
+                session_file_path(table, season, round_number, INGEST_SESSION).exists()
                 for table in INGEST_TABLES
             )
-            
+
             if not args.force and all_exist:
                 skipped += len(INGEST_TABLES)
                 log.info("%s: already on disk, skipped", label)

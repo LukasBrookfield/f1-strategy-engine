@@ -184,7 +184,7 @@ def load_session(
     if t0 is None:
         raise RuntimeError(
             f"FastF1 could not determine t0_date for {season} round {round_number} "
-            f"{session_code}. Every UTC timestamp would be unanchored; refusing to write."
+            f"{session_code}."
         )
 
     laps = _build_laps(session, season, round_number, session_code, t0)
