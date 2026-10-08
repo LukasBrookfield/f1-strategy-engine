@@ -9,9 +9,7 @@ from collections.abc import Sequence
 
 import pandas as pd
 
-from f1_strategy_engine.constants import PointInTimeMode
-
-LAP_KEYS = ("season", "round", "session", "driver", "lap_number")
+from f1_strategy_engine.constants import PointInTimeMode, LAP_KEYS
 
 
 def as_of(
