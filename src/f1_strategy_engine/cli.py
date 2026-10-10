@@ -13,10 +13,10 @@ import sys
 
 import fastf1
 
-from .config import get_config
-from .constants import Session
-from .ingest.sources.fastf1_archive import enable_cache, load_session
-from .ingest.writer import session_file_path, write_session
+from f1_strategy_engine.config import get_config
+from f1_strategy_engine.constants import Session
+from f1_strategy_engine.ingest.sources.fastf1_archive import enable_cache, load_session
+from f1_strategy_engine.ingest.writer import session_file_path, write_session
 
 log = logging.getLogger(__name__)
 
