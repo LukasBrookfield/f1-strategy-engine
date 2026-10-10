@@ -2,7 +2,9 @@ from enum import StrEnum
 
 CONFIG_PATH = "configs/base.yaml"
 
-LAP_KEYS = ("season", "round", "session", "driver", "lap_number")
+DRIVER_KEYS = ("season", "round", "session", "driver") 
+STINT_KEYS = (*DRIVER_KEYS, "stint")
+LAP_KEYS = (*DRIVER_KEYS, "lap_number")
 
 
 class Compound(StrEnum):

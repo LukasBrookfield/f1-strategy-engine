@@ -20,6 +20,29 @@ def add_flags(df: pd.DataFrame):
     return df
 
 
+def is_representative(laps: pd.DataFrame, pace: pd.Series) -> pd.Series:
+    """Laps whose pace reflects the tyres: the rows to aggregate or fit pace on.
+
+    Excludes lap 1, in/out laps, SC and VSC laps, laps FastF1 couldn't time
+    accurately or synthesised, laps deleted by race control, and laps with no pace.
+    A missing FastF1 flag excludes the lap.
+
+    `pace` is passed in rather than read from `laps`, so callers don't depend on
+    a column name.
+    """
+    excluded = (
+        laps["is_lap1"]
+        | laps["is_inlap"]
+        | laps["is_outlap"]
+        | laps["is_safety_car_lap"]
+        | laps["is_vsc_lap"]
+        | ~laps["is_accurate"].fillna(False)
+        | laps["deleted"].fillna(True)
+        | laps["fastf1_generated"].fillna(True)
+    )
+    return ~excluded & pace.notna()
+
+
 def fuel_correct(
     lap_time_s: pd.Series,
     laps_remaining: pd.Series,

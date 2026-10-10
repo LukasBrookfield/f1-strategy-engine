@@ -9,7 +9,7 @@ import pandas as pd
 
 from f1_strategy_engine.config import get_config
 from f1_strategy_engine.constants import CIRCUIT_ALIASES, CIRCUITS, Compound
-from f1_strategy_engine.features.silver import fuel_correct
+from f1_strategy_engine.features.silver import fuel_correct, is_representative
 
 RACE_KEY = ["season", "round", "session"]
 STINT_KEY = [*RACE_KEY, "driver", "stint"]
@@ -19,26 +19,6 @@ WINDOW_SIZE = 3
 # Fixed categories, so every frame (train, eval, serve) encodes values identically
 COMPOUND_DTYPE = pd.CategoricalDtype([c.value for c in Compound])
 CIRCUIT_DTYPE = pd.CategoricalDtype(CIRCUITS)
-
-
-def _representative(df: pd.DataFrame) -> pd.Series:
-    """Laps whose pace reflects the tyres, used by the pace aggregates.
-
-    Excludes lap 1, in/out laps, SC and VSC laps, laps FastF1 couldn't time
-    accurately or synthesised, laps deleted by race control, and missing times.
-    A missing FastF1 flag excludes the lap.
-    """
-    excluded = (
-        df["is_lap1"]
-        | df["is_inlap"]
-        | df["is_outlap"]
-        | df["is_safety_car_lap"]
-        | df["is_vsc_lap"]
-        | ~df["is_accurate"].fillna(False)
-        | df["deleted"].fillna(True)
-        | df["fastf1_generated"].fillna(True)
-    )
-    return ~excluded & df["pace"].notna()
 
 
 def _to_category(values: pd.Series, dtype: pd.CategoricalDtype) -> pd.Series:
@@ -100,7 +80,7 @@ def rolling_median_last_3(laps: pd.DataFrame) -> pd.Series:
     pace = fuel_corrected_lap_time(laps)
     df = laps.assign(pace=pace)
 
-    representative = _representative(df)
+    representative = is_representative(laps, pace)
     eligible = df[representative].sort_values([*STINT_KEY, "lap_number"])
 
     rolling_median = eligible.groupby(STINT_KEY)["pace"].transform(
@@ -122,7 +102,7 @@ def delta_to_stint_baseline(laps: pd.DataFrame) -> pd.Series:
     pace = fuel_corrected_lap_time(laps)
     df = laps.assign(pace=pace)
 
-    representative = _representative(df)
+    representative = is_representative(laps, pace)
     eligible = df[representative].sort_values([*STINT_KEY, "lap_number"])
     first_k = eligible.groupby(STINT_KEY).head(BASELINE_LAPS)
 
