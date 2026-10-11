@@ -69,7 +69,6 @@ WEATHER_SCHEMA = pa.schema(
         pa.field("sample_index", pa.int32(), nullable=False),
         *_BITEMPORAL,
         *_PROVENANCE,
-        # Session-clock original, kept as the audit trail for `event_time_utc`.
         pa.field("relative_time", pa.duration("ns")),
         pa.field("air_temp", pa.float64()),
         pa.field("humidity", pa.float64()),

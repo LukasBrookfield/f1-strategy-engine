@@ -2,6 +2,10 @@ from enum import StrEnum
 
 CONFIG_PATH = "configs/base.yaml"
 
+DRIVER_KEYS = ("season", "round", "session", "driver")
+STINT_KEYS = (*DRIVER_KEYS, "stint")
+LAP_KEYS = (*DRIVER_KEYS, "lap_number")
+
 
 class Compound(StrEnum):
     SOFT = "SOFT"
@@ -12,6 +16,10 @@ class Compound(StrEnum):
     UNKNOWN = "UNKNOWN"
     TEST_UNKNOWN = "TEST_UNKNOWN"
 
+
+# Dry tyres only: on a drying track inters get faster with age, which is the track
+# not the tyre, so no degradation model should fit or be scored on them
+SLICK_COMPOUNDS = (Compound.SOFT, Compound.MEDIUM, Compound.HARD)
 
 CIRCUITS = (
     "Austin",

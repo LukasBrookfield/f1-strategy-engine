@@ -3,6 +3,7 @@
 !README.md
 data/**
 !data/**/
+!data/**/.gitkeep
 .pytest_cache
 .ruff_cache
 

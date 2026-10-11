@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from .constants import CONFIG_PATH, PointInTimeMode
+from f1_strategy_engine.constants import CONFIG_PATH, PointInTimeMode
 
 
 @dataclass(frozen=True)
