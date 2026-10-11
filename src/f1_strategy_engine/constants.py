@@ -17,6 +17,10 @@ class Compound(StrEnum):
     TEST_UNKNOWN = "TEST_UNKNOWN"
 
 
+# Dry tyres only: on a drying track inters get faster with age, which is the track
+# not the tyre, so no degradation model should fit or be scored on them
+SLICK_COMPOUNDS = (Compound.SOFT, Compound.MEDIUM, Compound.HARD)
+
 CIRCUITS = (
     "Austin",
     "Baku",

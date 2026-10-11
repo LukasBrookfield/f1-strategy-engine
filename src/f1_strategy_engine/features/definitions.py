@@ -38,7 +38,9 @@ def _to_category(values: pd.Series, dtype: pd.CategoricalDtype) -> pd.Series:
 
 def compound(laps: pd.DataFrame) -> pd.Series:
     """Tyre compound of each lap, as a categorical with fixed categories."""
-    return _to_category(laps["compound"], COMPOUND_DTYPE).rename("compound")
+    # Some 2025 raw rows store a missing compound as the text "None" or "nan"
+    compounds = laps["compound"].replace({"None": None, "nan": None})
+    return _to_category(compounds, COMPOUND_DTYPE).rename("compound")
 
 
 def tyre_age(laps: pd.DataFrame) -> pd.Series:

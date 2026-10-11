@@ -4,14 +4,15 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 
-from f1_strategy_engine.constants import STINT_KEYS
+from f1_strategy_engine.constants import SLICK_COMPOUNDS
 from f1_strategy_engine.features.silver import is_representative
 
 
 def _training_rows(df: pd.DataFrame) -> pd.DataFrame:
-    """Representative laps that have a stint baseline: the rows slopes are fit on."""
+    """Representative slick laps with a stint baseline: the rows slopes are fit on."""
     representative = is_representative(df, df["fuel_corrected_lap_time"])
-    return df[representative & df["delta_to_stint_baseline"].notna()]
+    slick = df["compound"].isin(SLICK_COMPOUNDS)
+    return df[representative & slick & df["delta_to_stint_baseline"].notna()]
 
 
 class NoDegradationModel:
