@@ -34,10 +34,12 @@ class PerCompoundSlopeModel:
 
         slopes, intercepts = {}, {}
         for c, group in train.groupby("compound", observed=True):
-            lr = LinearRegression().fit(group[["stint_lap_index"]], group["delta_to_stint_baseline"])
+            lr = LinearRegression().fit(
+                group[["stint_lap_index"]], group["delta_to_stint_baseline"]
+            )
             slopes[c] = lr.coef_[0]
             intercepts[c] = lr.intercept_
-            
+
         self.slopes_ = pd.Series(slopes, dtype=np.float64)
         self.intercepts_ = pd.Series(intercepts, dtype=np.float64)
         return self
@@ -45,5 +47,8 @@ class PerCompoundSlopeModel:
     def predict(self, df: pd.DataFrame) -> np.ndarray:
         baseline = df["fuel_corrected_lap_time"] - df["delta_to_stint_baseline"]
         compound = df["compound"].astype(str)
-        delta = compound.map(self.intercepts_) + compound.map(self.slopes_) * df["stint_lap_index"]
+        delta = (
+            compound.map(self.intercepts_)
+            + compound.map(self.slopes_) * df["stint_lap_index"]
+        )
         return (baseline + delta).to_numpy(np.float64)

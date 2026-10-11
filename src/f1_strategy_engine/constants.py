@@ -2,7 +2,7 @@ from enum import StrEnum
 
 CONFIG_PATH = "configs/base.yaml"
 
-DRIVER_KEYS = ("season", "round", "session", "driver") 
+DRIVER_KEYS = ("season", "round", "session", "driver")
 STINT_KEYS = (*DRIVER_KEYS, "stint")
 LAP_KEYS = (*DRIVER_KEYS, "lap_number")
 

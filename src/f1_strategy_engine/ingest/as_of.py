@@ -9,7 +9,7 @@ from collections.abc import Sequence
 
 import pandas as pd
 
-from f1_strategy_engine.constants import PointInTimeMode, LAP_KEYS
+from f1_strategy_engine.constants import LAP_KEYS, PointInTimeMode
 
 
 def as_of(
