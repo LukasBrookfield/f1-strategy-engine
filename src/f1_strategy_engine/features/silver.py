@@ -49,7 +49,7 @@ def fuel_correct(
     kg_per_lap: float,
     s_per_kg: float,
 ) -> pd.Series:
-    """This method corrects lap time for amount of fuel left in car at time t
+    """Corrects lap time for amount of fuel left in car at time t
 
     The amount of fuel in the car is negatively correlated with lap time, so if we
     didn't do fuel correction then the degradation curve would include this correlation

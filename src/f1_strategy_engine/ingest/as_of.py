@@ -1,9 +1,4 @@
-"""The point-in-time gate: the only sanctioned way to read raw data.
-
-Every feature, model and evaluation reads bronze rows through `as_of`, so this
-is the single place where "what was knowable at time t" is decided. The Phase 4
-leakage experiment is nothing more than calling it with two different modes.
-"""
+"""The point-in-time gate: the only sanctioned way to read raw data."""
 
 from collections.abc import Sequence
 

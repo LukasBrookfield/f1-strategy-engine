@@ -10,8 +10,8 @@ from f1_strategy_engine.simulation.deterministic import strategy_time
 
 PACE = "fuel_corrected_lap_time"
 
-# Margins smaller than this are inside the model's noise: about 2x B1's held-out
-# RMSE per lap (~1.0 s, Phase 3)
+# Margins smaller than this are inside the model's noise: about 2x B1's
+# held-out RMSE per lap (~1.0 s)
 TOO_CLOSE_S = 2.0
 
 
